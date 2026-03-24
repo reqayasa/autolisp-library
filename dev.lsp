@@ -1,180 +1,100 @@
-; (defun c:iGetLoc () 
-;   (if (= divide-by nil) (setq divide-by 2500))
-;   (if (= add-by nil) (setq add-by 1))
+(defun c:iSumPL () 
+  (princ "version 0.1.11 /n")
+  (setq selection-set nil)
+  (setq total-length 0.0)
+  (setq num-corners 0)
 
-;   (while t 
-;     (initget "Select DivideBy AddBy Mode Exit")
-;     (setq option (getkword "\n[Select/DivideBy/AddBy/Mode/Exit]: <Select>"))
+  (initget "Normal Style Layer")
+  (setq option (getkword 
+                 "Select the selection mode \n[Normal/Style/Layer]: <Normal>"
+               )
+  )
 
-;     (cond 
-;       ((= option "Select")
-;        (progn 
-;          (princ "\nSelect Dimension")
-;          (setq selection-set (ssget '((0 . "DIMENSION"))))
-;          (if selection-set 
-;            (princ 
-;              (strcat "\nNumber of dimensions selected: " 
-;                      (itoa (sslength selection-set))
-;              )
-;            )
-;            (princ "\nNo dimensions selected.")
-;          )
-;        )
-;       )
-;       ((= option "DivideBy")
-;        (progn 
-;          (setq tmp-divide-by (getreal 
-;                                (strcat "\nDivide By <" (rtos divide-by 2 0) ">: ")
-;                              )
-;          )
-;          (if tmp-divide-by 
-;            (setq divide-by tmp-divide-by)
-;          )
-;          (princ (strcat "\nNew Divide By value: " (rtos divide-by 2 0)))
-;        )
-;       )
-;       ((= option "AddBy")
-;        (progn 
-;          (setq tmp-add-by (getreal (strcat "\nAdd By <" (rtos add-by 2 0) ">: ")))
-;          (if tmp-add-by 
-;            (setq add-by tmp-add-by)
-;          )
-;          (princ (strcat "\nNew Add By value: " (rtos add-by 2 0)))
-;        )
-;       )
-;       ((= option "Exit")
-;        (progn 
-;          (princ "\nExiting...")
-;          (exit)
-;        )
-;       )
-;       (t        (progn 
-;          (princ "\nSelect Dimension")
-;          (setq selection-set (ssget '((0 . "DIMENSION"))))
-;          (if selection-set 
-;            (princ 
-;              (strcat "\nNumber of dimensions selected: " 
-;                      (itoa (sslength selection-set))
-;              )
-;            )
-;            (princ "\nNo dimensions selected.")
-;          )
-;        ))
-;     )
-
-;     ;; Only proceed to editing if the user has selected dimensions and the option is not Select, DivideBy, or AddBy
-;     (if 
-;       (and selection-set 
-;            (not (eq option "DivideBy"))
-;            (not (eq option "AddBy"))
-;       )
-;       (progn 
-;         (setq i 0)
-;         (princ "its get here")
-;         (while (< i (sslength selection-set)) 
-;           (setq entity-name        (ssname selection-set i)
-;                 entity             (entget entity-name)
-;                 entity-measurement (cdr (assoc 42 entity))
-;                 count              (+ (/ entity-measurement divide-by) add-by)
-;                 text               (strcat (rtos count 2 0) " LOC")
-;                 i                  (1+ i)
-;           )
-;           (princ (strcat "\nEditing dimension: " (vl-princ-to-string entity-name)))
-;           (command "._dimedit" "_N" text entity-name "")
-;         )
-;         ;; Clear the selection set after editing
-;         (setq selection-set nil)
-;       )
-;     )
-;   )
-;   (princ)
-; )
-
-(defun c:iGetLoc () 
-  (if (= divide-by nil) (setq divide-by 2500))
-  (if (= add-by nil) (setq add-by 1))
-
-  (while t 
-    (princ (strcat "\nCurrent Settings: Devide by = " (rtos divide-by 2 0)
-                ", Add by = " (rtos add-by 2 0) 
-    ))
-    (initget "Select DivideBy AddBy Mode")
-    (setq option (getkword "\n[Select/DivideBy/AddBy/Mode]: <Select>"))
-
-    ;; Check if the user pressed Escape
-    (if (not option) 
-      (progn 
-        (princ "\nExiting...")
-        (exit)
-      )
-    )
-
-    (cond 
-      ((= option "Select") (SelectDimensions))
-      ((= option "DivideBy") (SetDivideBy))
-      ((= option "AddBy") (SetAddBy))
-      (t (SelectDimensions))
-    )
-
-    ;; Only proceed to editing if the user has selected dimensions and the option is not Select, DivideBy, or AddBy
-    (if 
-      (and selection-set 
-           (not (eq option "DivideBy"))
-           (not (eq option "AddBy"))
-      )
-      (EditDimensions)
-    )
+  (cond 
+    ((or (not option) (= option "Normal")) (NormalMode))
+    ((= option "Style") (StyleMode))
+    ((= option "Layer") (LayerMode))
+    (t (NormalMode))
   )
   (princ)
 )
 
-(defun SelectDimensions () 
-  (princ "\nSelect Dimension")
-  (setq selection-set (ssget '((0 . "DIMENSION"))))
+(defun NormalMode () 
+  (princ "Enter Normal Mode")
+  (setq selection-set (ssget '((0 . "LWPOLYLINE"))))
+  (CalculateLengthAndCorner)
+)
+
+(defun StyleMode () 
+  (princ "Enter Style Mode")
+)
+
+(defun LayerMode () 
+  (princ "Enter Layer Mode")
+)
+
+(defun CalculateLengthAndCorner () 
   (if selection-set 
-    (princ 
-      (strcat "\nNumber of dimensions selected: " 
-              (itoa (sslength selection-set))
+    (progn 
+      (setq i 0)
+      (while (< i (sslength selection-set)) 
+        (setq entity (ssname selection-set i))
+        (setq entity-length (vlax-curve-getDistAtParam entity 
+                                                       (vlax-curve-getEndParam entity)
+                            )
+        )
+        (setq entity-length-rounded (ceiling entity-length))
+        (setq total-length (+ total-length entity-length-rounded))
+        
+        (setq param 0)
+        (setq end-param (vlax-curve-getEndParam entity))      
+        (while (<= param end-param) 
+          (setq point (vlax-curve-getPointAtParam entity param))
+          (setq num-corners (1+ num-corners))
+          (setq param (1+ param))
+        )
+        
+        (setq i (1+ i))
+      )
+      (princ 
+        (strcat "\nTotal Length: " 
+                (rtos total-length 2 0)
+                " mm, "
+                "Total Length: "
+                (rtos (ceiling (/ total-length 1000)) 2 0)
+                " m, "
+                "Corner: "
+                (itoa num-corners)
+        )
       )
     )
-    (princ "\nNo dimensions selected.")
   )
 )
 
-(defun SetDivideBy () 
-  (setq tmp-divide-by (getreal 
-                        (strcat "\nDivide By <" (rtos divide-by 2 0) ">: ")
-                      )
+(defun ceiling (x) 
+  (if (= x (fix x)) 
+    x
+    (1+ (fix x))
   )
-  (if tmp-divide-by 
-    (setq divide-by tmp-divide-by)
-  )
-  (princ (strcat "\nNew Divide By value: " (rtos divide-by 2 0)))
 )
 
-(defun SetAddBy () 
-  (setq tmp-add-by (getreal (strcat "\nAdd By <" (rtos add-by 2 0) ">: ")))
-  (if tmp-add-by 
-    (setq add-by tmp-add-by)
-  )
-  (princ (strcat "\nNew Add By value: " (rtos add-by 2 0)))
-)
-
-(defun EditDimensions () 
-  (setq i 0)
-  (princ "its get here")
-  (while (< i (sslength selection-set)) 
-    (setq entity-name        (ssname selection-set i)
-          entity             (entget entity-name)
-          entity-measurement (cdr (assoc 42 entity))
-          count              (+ (/ entity-measurement divide-by) add-by)
-          text               (strcat (rtos count 2 0) " LOC")
-          i                  (1+ i)
+(defun c:CountPolylineCorners () 
+  (princ "\nSelect a polyline:")
+  (setq selection-set (ssget '((0 . "LWPOLYLINE"))))
+  (if (and selection-set (= (sslength selection-set) 1)) 
+    (progn 
+      (setq polyline (ssname selection-set 0))
+      (setq end-param (vlax-curve-getEndParam polyline))
+      (setq num-corners 0)
+      (setq param 0)
+      (while (<= param end-param) 
+        (setq point (vlax-curve-getPointAtParam polyline param))
+        (setq num-corners (1+ num-corners))
+        (setq param (1+ param))
+      )
+      (princ (strcat "\nNumber of corners: " (itoa num-corners)))
     )
-    (princ (strcat "\nEditing dimension: " (vl-princ-to-string entity-name)))
-    (command "._dimedit" "_N" text entity-name "")
+    (princ "\nPlease select exactly one polyline.")
   )
-  ;; Clear the selection set after editing
-  (setq selection-set nil)
   (princ)
 )
